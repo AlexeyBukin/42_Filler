@@ -9,7 +9,15 @@ import 'package:filler/extensions/color_harmonies.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'dart:math' as math;
 
+import 'package:window_size/window_size.dart';
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    setWindowTitle('Filler Visualizer');
+    setWindowMinSize(const Size(640, 480));
+    setWindowMaxSize(Size.infinite);
+  }
   runApp(MyApp());
 }
 
