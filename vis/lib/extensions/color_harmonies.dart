@@ -1,32 +1,5 @@
 import 'package:flutter/material.dart';
-
-extension PeriodicShift on double {
-  double insidePeriodWithLength(double periodLength) {
-    if (periodLength == 0) {
-      throw IntegerDivisionByZeroException();
-    }
-    final periodsNumber = this ~/ periodLength;
-    final periodsDiff = periodsNumber * periodLength;
-    return this - periodsDiff;
-  }
-
-  // For example we have periodic ranges 1..4, 5..8, 9..12 and so on
-  // Let's call 1..4 the chosen one, we want to get result in it
-  // Take number 11, its third in range 9..12 so it IS THIRD.
-  // Now lets get THIRD number in range 1...4 and the result is 3
-  // God bless this code
-  double insidePeriod({double from = 0, double to = 1}) {
-    if (from >= to) {
-      throw IntegerDivisionByZeroException();
-    }
-    final offset = from;
-    final periodLength = to - offset;
-    final thisShifted = this - offset;
-    final thisShiftedInsidePeriod =
-        thisShifted.insidePeriodWithLength(periodLength);
-    return thisShiftedInsidePeriod + offset;
-  }
-}
+import 'periodic_shift.dart';
 
 extension ColorHarmonies on Color {
 

@@ -1,10 +1,8 @@
 
-// flutter test test/periodic_shift_test.dart
+// ``` flutter test test/periodic_shift_test.dart ```
 
-import 'package:flutter_filler_2/ColorHarmonies.dart';
+import 'package:filler/extensions/periodic_shift.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-double a = 4;
 
 void main() {
 

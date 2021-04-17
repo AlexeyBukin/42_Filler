@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_filler_2/FillerReader.dart';
-import 'package:flutter_filler_2/PickerBridge.dart';
-import 'package:flutter_filler_2/ColorHarmonies.dart';
+import 'package:filler/filler_reader.dart';
+import 'package:filler/filepicker_bridge.dart';
+import 'package:filler/extensions/color_harmonies.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'dart:math' as math;
 

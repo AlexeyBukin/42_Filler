@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.flutter_filler_2">
+    package="ru.oquad.filler">
    <application
-        android:label="flutter_filler_2"
+        android:label="filler"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
