@@ -3,25 +3,29 @@ import 'dart:io';
 
 typedef FillerUpdateCallback = void Function();
 
-enum FillerReaderState { header, steps, tail, done, error }
+enum FillerReaderState { none, header, step, steps, tail, all, error }
 
 // Main class to process Filler game
 class FillerReader {
   int linesRead = 0;
 
-  late final Stream<String> lineStream;
+  late FillerReaderState _sectionDone;
+  String errorMessage = 'OK';
 
-  // late final StreamSubscription<String> subscription;
+  set sectionDone(FillerReaderState completedSection) {
+    _sectionDone = completedSection;
+    onUpdate?.call();
+  }
+
+  FillerReaderState get sectionDone => _sectionDone;
+
+  late final Stream<String> lineStream;
 
   String? player1;
   String? player2;
 
   String? score1;
   String? score2;
-
-  bool headerDone = true;
-  bool stepsDone = true;
-  bool allDone = true;
 
   static const String headerPlayerLineStart = '\$\$\$ exec p0 : ';
   static const String stepLineStart = 'Plateau';
@@ -39,20 +43,21 @@ class FillerReader {
   String _lastLine = '';
   List<FillerStep> steps = List.empty(growable: true);
 
-  FillerUpdateCallback? onUpdate;
+  final FillerUpdateCallback? onUpdate;
 
-  FillerReader.fromLinesStream(Stream<String> stream) {
+  FillerReader.fromLinesStream(Stream<String> stream, {this.onUpdate}) {
     lineStream = stream.asBroadcastStream();
+    sectionDone = FillerReaderState.none;
   }
 
-  FillerReader.fromString(String input)
-      : this.fromLinesStream(_splitStringToLines(input));
+  FillerReader.fromString(String input, {FillerUpdateCallback? onUpdate})
+      : this.fromLinesStream(_splitStringToLines(input), onUpdate: onUpdate);
 
-  FillerReader.fromCharsStream(Stream<List<int>> input)
-      : this.fromLinesStream(_charsToLinesStreamTransform(input));
+  FillerReader.fromCharsStream(Stream<List<int>> input, {FillerUpdateCallback? onUpdate})
+      : this.fromLinesStream(_charsToLinesStreamTransform(input), onUpdate: onUpdate);
 
-  FillerReader.fromFile(String pathToFile)
-      : this.fromCharsStream(getFileStream(pathToFile));
+  FillerReader.fromFile(String pathToFile, {FillerUpdateCallback? onUpdate})
+      : this.fromCharsStream(getFileStream(pathToFile), onUpdate: onUpdate);
 
   static Stream<List<int>> getFileStream(String path) {
     final file = File(path);
@@ -72,21 +77,19 @@ class FillerReader {
   Future read() async {
     try {
       await _readHeader();
-      headerDone = true;
-      onUpdate?.call();
+      sectionDone = FillerReaderState.header;
+      
       await _readSteps();
-      stepsDone = true;
-      onUpdate?.call();
+      sectionDone = FillerReaderState.steps;
+      
       await _readTail();
-      allDone = true;
-      onUpdate?.call();
-      if (player1 == null || player2 == null) {
-        throw FillerReadException(
-            'Player ${(player1 == null) ? '1' : '2'} is undefined');
-      }
+      sectionDone = FillerReaderState.tail;
+      // ???
+      sectionDone = FillerReaderState.all;
     } on FillerReadException catch (fre) {
       print('WARNING: Caught filler input exception');
       print('Line $linesRead: \'${fre.message}\'');
+      sectionDone = FillerReaderState.error;
     } catch (e) {
       print(e);
     }
@@ -112,7 +115,11 @@ class FillerReader {
 
       if (line.startsWith(stepLineStart)) {
         _lastLine = line;
-        return;
+        if (player1 == null || player2 == null) {
+          throw FillerReadException(
+              'Player ${(player1 == null) ? '1' : '2'} is undefined');
+        }
+        return ;
       }
 
       if (line.startsWith(player1match)) {
@@ -149,7 +156,7 @@ class FillerReader {
   Future _readSteps() async {
     while (!(_lastLine.startsWith(tailLineStart))) {
       await _readStep();
-      onUpdate?.call();
+      sectionDone = FillerReaderState.step;
     }
   }
 
@@ -197,7 +204,6 @@ class FillerReader {
       }
       if (stepLineNumber > field.height! + 1) {
         _lastLine = line;
-        stepsDone = true;
         return field;
       }
       field.addLine(_stepCharsToIntegers(line.substring(4, null)));
@@ -301,7 +307,6 @@ class FillerReader {
     }
     second = line;
     _readTailLines(first, second);
-    allDone = true;
   }
 
   void _readTailLines(String first, String second) {
