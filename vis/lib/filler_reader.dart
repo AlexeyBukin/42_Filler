@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:async/async.dart';
 
 typedef FillerUpdateCallback = void Function();
 
@@ -8,6 +9,8 @@ enum FillerReaderState { none, header, step, steps, tail, all, error }
 // Main class to process Filler game
 class FillerReader {
   int linesRead = 0;
+  // TODO implement stopping of
+  CancelableOperation? loadingOperation;
 
   late FillerReaderState _sectionDone;
   String errorMessage = 'OK';

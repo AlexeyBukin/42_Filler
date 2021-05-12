@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:filler/extensions/material_color_creator.dart';
@@ -32,11 +31,17 @@ class FillerPage extends StatefulWidget {
 }
 
 class FillerPageState extends State<FillerPage> {
-  CancelableOperation? loadingOperation;
+
   var loadingState = LoadingState.waiting;
   var playerState = PlayerState.paused;
-  bool loading = true;
-  late FillerReader reader;// = FillerReader.fromCharsStream(stdin);
+  /// Frames per second
+  /// When [playerSpeed] == 0 then we should play with the speed of loading
+  /// To pause playing use [playerState] with [PlayerState.paused] value
+  var playerSpeed = 1.0;
+
+  bool get loading => loadingState == LoadingState.loading;
+  // bool loading = true;
+  late FillerReader reader;
   var currentStep = 0;
   var maxStep = 0;
 
