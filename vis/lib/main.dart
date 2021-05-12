@@ -4,11 +4,13 @@ import 'package:flutter/widgets.dart';
 import 'package:window_size/window_size.dart';
 import 'filler_page.dart';
 
+// cat ../res/logs/abanlin-carli.map00.log.txt | ./build/linux/release/bundle/flutter_filler_2
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     setWindowTitle('Filler Visualizer');
-    setWindowMinSize(const Size(640, 480));
+    setWindowMinSize(const Size(1280, 720));
     setWindowMaxSize(Size.infinite);
   }
   runApp(MyApp());

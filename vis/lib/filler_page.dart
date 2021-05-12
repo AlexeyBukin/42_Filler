@@ -37,49 +37,16 @@ class FillerPageState extends State<FillerPage> {
   /// Frames per second
   /// When [playerSpeed] == 0 then we should play with the speed of loading
   /// To pause playing use [playerState] with [PlayerState.paused] value
-  var playerSpeed = 1.0;
+  var playerSpeed = 0.0;
 
-  // reader replacement
-  List<FillerStep> steps = List<FillerStep>.empty(growable: true);
-  String player1 = '...';
-  String player2 = '...';
+  late List<FillerStep> steps;
+  late String player1;
+  late String player2;
 
   bool get loading => loadingState == LoadingState.loading;
 
   late FillerReader reader;
   var currentStep = 0;
-
-  // var maxStep = 0;
-
-  // todo rename me
-  Future doTheTrick() async {
-    // reader.onUpdate = () {
-    //   setState(() {
-    //     loading = false;
-    //     maxStep = reader.steps.length;
-    //   });
-    // };
-    reader.start();
-    // await reader.future();
-    // reader.steps = reader.steps.map((e) => e == null ? reader.steps.first : e).toList();
-    // reader.steps = reader.steps.map((e) => e.field == null ? reader.steps.first : e).toList();
-  }
-
-  // CancelableOperation startLoading(FillerReader reader) {
-  //   return CancelableOperation.fromFuture(reader.read());
-  // }
-  //
-  // void beginLoading() {
-  //   if (loadingState == LoadingState.loading) {
-  //     return ;
-  //   }
-  //   loadingOperation = CancelableOperation.fromFuture(reader.read());
-  //
-  //   setState(() {
-  //     loadingState = LoadingState.loading;
-  //     // playerState = PlayerState.playing;
-  //   });
-  // }
 
   void onReaderUpdate() {
     progressWidget = Text(reader.sectionDone.toString());
@@ -133,45 +100,92 @@ class FillerPageState extends State<FillerPage> {
     setState(() {});
   }
 
+  void clear() {
+    steps = List<FillerStep>.empty(growable: false);
+    currentStep = 0;
+    player1 = '...';
+    player2 = '...';
+    playerState = PlayerState.paused;
+    playerSpeed = 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
+    clear();
     reader = FillerReader.fromCharsStream(stdin, onUpdate: onReaderUpdate)
       ..start();
   }
 
   bool canLoadFile() => loadingState != LoadingState.loading;
 
+  void progressButtonStop() {
+    setState(() {
+      reader.stop();
+      loadingState = LoadingState.stopped;
+    });
+  }
+
+  Widget progressButton() {
+    switch (loadingState) {
+      case LoadingState.loading:
+        return IconButton(
+          onPressed: progressButtonStop,
+          icon: Icon(Icons.stop_circle_outlined),
+          tooltip: 'Stop',
+        );
+      case LoadingState.finished:
+        return IconButton(
+          onPressed: null,
+          icon: Icon(Icons.check_circle_outlined),
+          tooltip: 'Visualization is ready',
+        );
+      case LoadingState.stopped:
+        return IconButton(
+          onPressed: null,
+          icon: Icon(Icons.stop_circle_outlined),
+          tooltip: 'Loading was stopped',
+        );
+      case LoadingState.waiting:
+        return IconButton(
+          onPressed: null,
+          icon: Icon(Icons.workspaces_outline),
+          tooltip: 'Waiting to load file',
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            IconButton(
+          bottom: PreferredSize(
+            child: loading ? LinearProgressIndicator() : Container(),
+            preferredSize: Size.fromHeight(5),
+          ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: progressButton(),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: IconButton(
               onPressed: canLoadFile() ? loadLogFile : null,
               icon: Icon(Icons.folder),
               tooltip: canLoadFile()
                   ? 'Load log file'
                   : 'Stop current process to load new one',
             ),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [Text('Progress: '), progressWidget],
-              ),
-            ),
-            // button(context),
-            Text(widget.title),
-          ],
-        ),
+          ),
+        ],
+        title: Text(widget.title),
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            buildInfoPanel(),
-            buildFieldPanel(),
+            buildMainPanel(),
             buildPlayerPanel(),
           ],
         ),
@@ -197,6 +211,7 @@ class FillerPageState extends State<FillerPage> {
       // debug-only
       // print(file);
       setState(() {
+        clear();
         reader = FillerReader.fromFile(file, onUpdate: onReaderUpdate)..start();
         loadingState = LoadingState.loading;
       });
@@ -213,7 +228,7 @@ class FillerPageState extends State<FillerPage> {
     );
   }
 
-  Widget buildFieldPanel() {
+  Widget buildMainPanel() {
     var tableWidget = Container(
       // color: Colors.red,
       child: steps.isEmpty
@@ -230,7 +245,13 @@ class FillerPageState extends State<FillerPage> {
           ),
           Expanded(
             flex: 1,
-            child: buildPiece(),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                buildInfoPanel(),
+                buildPiece(),
+              ],
+            ),
           )
         ],
       ),
@@ -400,41 +421,41 @@ class FillerPageState extends State<FillerPage> {
   }
 }
 
-Widget button(context) {
-  var currentColor = Colors.blue;
-  return RaisedButton(
-    elevation: 3.0,
-    onPressed: () {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            titlePadding: const EdgeInsets.all(0.0),
-            contentPadding: const EdgeInsets.all(0.0),
-            content: SingleChildScrollView(
-              child: ColorPicker(
-                pickerColor: currentColor,
-                onColorChanged: (c) {},
-                colorPickerWidth: 300.0,
-                pickerAreaHeightPercent: 0.7,
-                enableAlpha: true,
-                displayThumbColor: true,
-                showLabel: true,
-                paletteType: PaletteType.hsv,
-                pickerAreaBorderRadius: const BorderRadius.only(
-                  topLeft: const Radius.circular(2.0),
-                  topRight: const Radius.circular(2.0),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    },
-    child: const Text('Change me'),
-    color: Colors.blue,
-    textColor: useWhiteForeground(Colors.blue)
-        ? const Color(0xffffffff)
-        : const Color(0xff000000),
-  );
-}
+// Widget button(context) {
+//   var currentColor = Colors.blue;
+//   return RaisedButton(
+//     elevation: 3.0,
+//     onPressed: () {
+//       showDialog(
+//         context: context,
+//         builder: (BuildContext context) {
+//           return AlertDialog(
+//             titlePadding: const EdgeInsets.all(0.0),
+//             contentPadding: const EdgeInsets.all(0.0),
+//             content: SingleChildScrollView(
+//               child: ColorPicker(
+//                 pickerColor: currentColor,
+//                 onColorChanged: (c) {},
+//                 colorPickerWidth: 300.0,
+//                 pickerAreaHeightPercent: 0.7,
+//                 enableAlpha: true,
+//                 displayThumbColor: true,
+//                 showLabel: true,
+//                 paletteType: PaletteType.hsv,
+//                 pickerAreaBorderRadius: const BorderRadius.only(
+//                   topLeft: const Radius.circular(2.0),
+//                   topRight: const Radius.circular(2.0),
+//                 ),
+//               ),
+//             ),
+//           );
+//         },
+//       );
+//     },
+//     child: const Text('Change me'),
+//     color: Colors.blue,
+//     textColor: useWhiteForeground(Colors.blue)
+//         ? const Color(0xffffffff)
+//         : const Color(0xff000000),
+//   );
+// }

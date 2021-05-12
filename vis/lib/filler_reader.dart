@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
-import 'package:async/async.dart';
 import 'package:filler/extensions/string_starts_switch.dart';
 import 'package:filler/const.dart' as Const;
 
@@ -60,14 +59,13 @@ class FillerReader {
   /// After this call current object is 'alive'
   /// and will trigger [onUpdate] callback
   void start() {
-    _loadingOperation = CancelableOperation.fromFuture(_read());
+    _read();
   }
 
   /// Stops loading and reading of source
   /// After this call current object is 'dead', do not touch it then
   void stop() {
-    _loadingOperation?.cancel();
-    _subscription.cancel();
+    _shouldStop = true;
   }
 
   @deprecated
@@ -93,6 +91,9 @@ class FillerReader {
   // Automated state setter with callback notification
   set sectionDone(FillerReaderState completedSection) {
     _sectionDone = completedSection;
+    if (_shouldStop && completedSection != FillerReaderState.error) {
+      throw FillerReadException('stopped');
+    }
     onUpdate?.call();
   }
 
@@ -100,7 +101,7 @@ class FillerReader {
   int _linesRead = 0;
 
   // Used to stop loading
-  CancelableOperation? _loadingOperation;
+  bool _shouldStop = false;
 
   // State holder
   late FillerReaderState _sectionDone;
@@ -119,12 +120,7 @@ class FillerReader {
   Completer<String?>? _nextLineCompleter;
 
   // Handles lines overload if they consumed too slow
-  Queue<String> _lineQueue = Queue<String>();
-
-  // used to 'await' loading process
-  Future? future() {
-    return _loadingOperation?.value;
-  }
+  Queue<String> lineQueue = Queue<String>();
 
   // main function, handles source parsing
   Future _read() async {
@@ -153,15 +149,12 @@ class FillerReader {
       errorMessage = 'Unknown Error';
     }
     _subscription.cancel();
+
     // debug
     print('player1 ${names.player1}');
     print('player2 ${names.player2}');
     print('score1 ${score.player1}');
     print('score2 ${score.player2}');
-    print('X char is ' + 'X'.codeUnits.first.toString());
-    print('x char is ' + 'x'.codeUnits.first.toString());
-    print('O char is ' + 'O'.codeUnits.first.toString());
-    print('o char is ' + 'o'.codeUnits.first.toString());
   }
 
   Future _readHeader() async {
@@ -337,7 +330,7 @@ class FillerReader {
       _nextLineCompleter!.complete(newLine);
       _nextLineCompleter = null;
     } else {
-      _lineQueue.add(newLine);
+      lineQueue.add(newLine);
     }
   }
 
@@ -348,8 +341,8 @@ class FillerReader {
   }
 
   Future<String> getNextLine({required FillerReadException onError}) async {
-    if (_lineQueue.isNotEmpty) {
-      return _lineQueue.removeFirst();
+    if (lineQueue.isNotEmpty) {
+      return lineQueue.removeFirst();
     }
     if (_streamDone) {
       throw onError;
@@ -397,7 +390,7 @@ class FillerReader {
     if (!file.existsSync()) {
       throw FillerReadException('File does not exist');
     }
-    final startPos = 0;
+    final startPos = null;
     final endPos = null;
     return file.openRead(startPos, endPos);
   }
