@@ -31,19 +31,25 @@ class FillerPage extends StatefulWidget {
 }
 
 class FillerPageState extends State<FillerPage> {
-
   var loadingState = LoadingState.waiting;
   var playerState = PlayerState.paused;
+
   /// Frames per second
   /// When [playerSpeed] == 0 then we should play with the speed of loading
   /// To pause playing use [playerState] with [PlayerState.paused] value
   var playerSpeed = 1.0;
 
+  // reader replacement
+  List<FillerStep> steps = List<FillerStep>.empty(growable: true);
+  String player1 = '...';
+  String player2 = '...';
+
   bool get loading => loadingState == LoadingState.loading;
-  // bool loading = true;
+
   late FillerReader reader;
   var currentStep = 0;
-  var maxStep = 0;
+
+  // var maxStep = 0;
 
   // todo rename me
   Future doTheTrick() async {
@@ -53,16 +59,10 @@ class FillerPageState extends State<FillerPage> {
     //     maxStep = reader.steps.length;
     //   });
     // };
-    await reader.read();
+    reader.start();
+    // await reader.future();
     // reader.steps = reader.steps.map((e) => e == null ? reader.steps.first : e).toList();
     // reader.steps = reader.steps.map((e) => e.field == null ? reader.steps.first : e).toList();
-    reader.steps = reader.steps
-        .map((e) => e.field?.width == null ? reader.steps.first : e)
-        .toList();
-    reader.steps = reader.steps
-        .map((e) => e.field?.height == null ? reader.steps.first : e)
-        .toList();
-    print(reader.steps.map((step) => step.field?.width).toList());
   }
 
   // CancelableOperation startLoading(FillerReader reader) {
@@ -82,19 +82,65 @@ class FillerPageState extends State<FillerPage> {
   // }
 
   void onReaderUpdate() {
-    // print(reader.)
-    // setState(() {
-    //
-    // });
+    progressWidget = Text(reader.sectionDone.toString());
+    switch (reader.sectionDone) {
+      case FillerReaderState.none:
+        // Do nothing
+        // progressWidget = Text('state_none')
+        break;
+      case FillerReaderState.header:
+        // TODO: Update score
+        setState(() {
+          //TODO refactor
+          player1 = reader.names.player1;
+          player2 = reader.names.player2;
+          progressWidget = Text('Header is loaded');
+        });
+        break;
+      case FillerReaderState.step:
+        onReaderUpdateStep();
+        break;
+      case FillerReaderState.steps:
+        setState(() {
+          progressWidget = Text('Steps are loaded');
+        });
+        break;
+      case FillerReaderState.tail:
+        // TODO: Update score
+        break;
+      case FillerReaderState.all:
+        setState(() {
+          loadingState = LoadingState.finished;
+          progressWidget = Text('Loading done!');
+        });
+        break;
+      case FillerReaderState.error:
+        setState(() {
+          loadingState = LoadingState.stopped;
+          progressWidget = Text('Error occurred while loading');
+        });
+        break;
+    }
+  }
+
+  void onReaderUpdateStep() {
+    steps = reader.steps
+        .map((e) => e.field?.width == null ? reader.steps.first : e)
+        .toList();
+    steps = reader.steps
+        .map((e) => e.field?.height == null ? reader.steps.first : e)
+        .toList();
+    setState(() {});
   }
 
   @override
   void initState() {
     super.initState();
-    reader = FillerReader.fromCharsStream(stdin, onUpdate: onReaderUpdate);
-    // loadingOperation
-    // doTheTrick();
+    reader = FillerReader.fromCharsStream(stdin, onUpdate: onReaderUpdate)
+      ..start();
   }
+
+  bool canLoadFile() => loadingState != LoadingState.loading;
 
   @override
   Widget build(BuildContext context) {
@@ -103,20 +149,20 @@ class FillerPageState extends State<FillerPage> {
         title: Row(
           children: [
             IconButton(
-              onPressed: loadLogFile,
+              onPressed: canLoadFile() ? loadLogFile : null,
               icon: Icon(Icons.folder),
-              tooltip: 'Load log file',
+              tooltip: canLoadFile()
+                  ? 'Load log file'
+                  : 'Stop current process to load new one',
             ),
-            button(context),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: Align(
-                  child: Text(widget.title),
-                  alignment: Alignment.centerRight,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [Text('Progress: '), progressWidget],
               ),
             ),
+            // button(context),
+            Text(widget.title),
           ],
         ),
       ),
@@ -124,7 +170,7 @@ class FillerPageState extends State<FillerPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            // buildInfoPanel(),
+            buildInfoPanel(),
             buildFieldPanel(),
             buildPlayerPanel(),
           ],
@@ -133,17 +179,27 @@ class FillerPageState extends State<FillerPage> {
     );
   }
 
+  Widget progressWidget = Text('here we have progress');
+
+  Widget buildProgressIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        Text('Progress:'),
+        progressWidget,
+      ],
+    );
+  }
+
   Future loadLogFile() async {
     final String? file = await pickLogFile(context);
     if (file != null) {
-      print(file);
+      // debug-only
+      // print(file);
       setState(() {
+        reader = FillerReader.fromFile(file, onUpdate: onReaderUpdate)..start();
         loadingState = LoadingState.loading;
-        // loading = true;
       });
-      reader = FillerReader.fromFile(file);
-      doTheTrick();
-      // todo open and load file
     }
   }
 
@@ -151,8 +207,8 @@ class FillerPageState extends State<FillerPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Text('Player1: ' + (loading ? '...' : reader.player1!)),
-        Text('Player2: ' + (loading ? '...' : reader.player2!)),
+        Text('Player1: ' + player1),
+        Text('Player2: ' + player2),
       ],
     );
   }
@@ -160,7 +216,7 @@ class FillerPageState extends State<FillerPage> {
   Widget buildFieldPanel() {
     var tableWidget = Container(
       // color: Colors.red,
-      child: reader.steps.isEmpty
+      child: steps.isEmpty
           ? Center(child: Text('Let\'s load some Filler replays!'))
           : buildTable(),
       // padding: EdgeInsets.all(10),
@@ -191,7 +247,8 @@ class FillerPageState extends State<FillerPage> {
       [Color? fieldPrimaryColor]) {
     fieldPrimaryColor ??= Colors.blue;
     final color1 = MaterialColorCreator.create(fieldPrimaryColor);
-    final color2 = MaterialColorCreator.create(fieldPrimaryColor.complementary());
+    final color2 =
+        MaterialColorCreator.create(fieldPrimaryColor.complementary());
 
     final fieldColor = Color.fromARGB(255, 200, 200, 200);
     final rowMapper = (List<int> rowData) => rowData.map((int cellData) {
@@ -227,7 +284,7 @@ class FillerPageState extends State<FillerPage> {
   }
 
   Widget buildTable() {
-    var step = reader.steps[currentStep].field!;
+    var step = steps[currentStep].field!;
     var width = step.width!;
     var height = step.height!;
     // double scale = 10;
@@ -263,8 +320,10 @@ class FillerPageState extends State<FillerPage> {
   }
 
   Widget buildPlayerPanel() {
+    var maxStep = steps.length;
     final nextStepIsProhibited = currentStep >= maxStep - 1;
     final backStepIsProhibited = currentStep <= 0;
+    bool stepsEmpty = steps.isEmpty;
     return Column(
       children: [
         Row(
@@ -272,18 +331,19 @@ class FillerPageState extends State<FillerPage> {
           children: [
             Expanded(
                 child: Slider(
-              value: loading ? 0 : (currentStep + 1).toDouble(),
-              min: loading ? 0 : 1,
-              max: loading ? 0 : (maxStep).toDouble(),
+              value: stepsEmpty ? 0 : (currentStep + 1).toDouble(),
+              min: stepsEmpty ? 0 : 1,
+              max: stepsEmpty ? 0 : (maxStep).toDouble(),
               divisions: maxStep <= 0 ? null : maxStep,
               label: (currentStep + 1).toString(),
               onChanged: (double value) {
+                if (stepsEmpty) {
+                  return;
+                }
                 setState(() {
                   currentStep = value.round() - 1;
                   print('currentStep: $currentStep');
                   print('maxStep: $maxStep');
-                  print('arr: ${reader.steps.length}');
-                  // _currentSliderValue = value;
                 });
               },
             )),
@@ -313,7 +373,7 @@ class FillerPageState extends State<FillerPage> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 10),
               child: Text(
-                  '${loading ? 0 : currentStep + 1} / ${loading ? 0 : maxStep}'),
+                  '${stepsEmpty ? 0 : currentStep + 1} / ${stepsEmpty ? 0 : maxStep}'),
             ),
             IconButton(
                 icon: Icon(Icons.arrow_right),
@@ -378,4 +438,3 @@ Widget button(context) {
         : const Color(0xff000000),
   );
 }
-
