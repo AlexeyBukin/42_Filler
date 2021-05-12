@@ -125,10 +125,10 @@ class FillerPageState extends State<FillerPage> {
 
   void onReaderUpdateStep() {
     steps = reader.steps
-        .map((e) => e.field?.width == null ? reader.steps.first : e)
+        .map((e) => e.field.width == null ? reader.steps.first : e)
         .toList();
     steps = reader.steps
-        .map((e) => e.field?.height == null ? reader.steps.first : e)
+        .map((e) => e.field.height == null ? reader.steps.first : e)
         .toList();
     setState(() {});
   }
@@ -284,9 +284,9 @@ class FillerPageState extends State<FillerPage> {
   }
 
   Widget buildTable() {
-    var step = steps[currentStep].field!;
-    var width = step.width!;
-    var height = step.height!;
+    var step = steps[currentStep].field;
+    var width = step.width;
+    var height = step.height;
     // double scale = 10;
     // return Container(
     //   padding: EdgeInsets.all(20),

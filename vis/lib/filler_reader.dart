@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 import 'package:async/async.dart';
+import 'package:filler/extensions/string_starts_switch.dart';
 import 'package:filler/const.dart' as Const;
 
 typedef FillerUpdateCallback = void Function();
@@ -35,7 +36,7 @@ class FillerReader {
   FillerReader.fromLinesStream(Stream<String> stream, {this.onUpdate}) {
     _lineStream = stream;
     _subscription =
-        _lineStream.listen(lineStreamListener, onDone: lineStreamOnDone);
+        _lineStream.listen(_lineStreamListener, onDone: _lineStreamOnDone);
     _sectionDone = FillerReaderState.none;
     score = PlayerPropertyPair('score1', 'score2');
     names = PlayerPropertyPair('player1', 'player2');
@@ -69,7 +70,11 @@ class FillerReader {
     _subscription.cancel();
   }
 
+  @deprecated
   static const String headerPlayerLineStart = '\$\$\$ exec p0 : ';
+
+  static const String headerPlayer1LineStart = '\$\$\$ exec p1 : ';
+  static const String headerPlayer2LineStart = '\$\$\$ exec p2 : ';
   static const String stepLineStart = 'Plateau';
   static const String stepPieceStart = 'Piece';
   static const String stepLastLineStart = '<got ';
@@ -110,11 +115,18 @@ class FillerReader {
   // Last line that was read but was not consumed in any operation
   String _lastLine = '';
 
+  // Lets await for next line
+  Completer<String?>? _nextLineCompleter;
+
+  // Handles lines overload if they consumed too slow
+  Queue<String> _lineQueue = Queue<String>();
+
   // used to 'await' loading process
   Future? future() {
     return _loadingOperation?.value;
   }
 
+  // main function, handles source parsing
   Future _read() async {
     try {
       await _readHeader();
@@ -153,122 +165,65 @@ class FillerReader {
   }
 
   Future _readHeader() async {
-    final player1match = headerPlayerLineStart.replaceFirst('0', '1');
-    final player2match = headerPlayerLineStart.replaceFirst('0', '2');
-
     String? player1name;
     String? player2name;
-
+    final switchPatterns = [
+      headerPlayer1LineStart,
+      headerPlayer2LineStart,
+      stepLineStart
+    ];
     while (true) {
       final line = await getNextLine(
           onError: FillerReadException('Unexpected end of header input'));
-
-      if (line.startsWith(stepLineStart)) {
-        _lastLine = line;
-        if (player1name == null || player2name == null) {
-          throw FillerReadException(
-              'Player ${(player1name == null) ? '1' : '2'} is undefined');
-        }
-        names = PlayerPropertyPair(player1name, player2name);
-        return;
+      switch (line.startsSwitch(values: switchPatterns)) {
+        case headerPlayer1LineStart:
+          player1name = _getPlayerName(
+              line.replaceFirst(headerPlayer1LineStart, '').trim());
+          break;
+        case headerPlayer2LineStart:
+          player2name = _getPlayerName(
+              line.replaceFirst(headerPlayer2LineStart, '').trim());
+          break;
+        case stepLineStart:
+          _lastLine = line;
+          if (player1name == null || player2name == null) {
+            throw FillerReadException(
+                'Player ${(player1name == null) ? '1' : '2'} is undefined');
+          }
+          names = PlayerPropertyPair(player1name, player2name);
+          return;
       }
-
-      if (line.startsWith(player1match)) {
-        player1name =
-            _getPlayerName(line.replaceFirst(player1match, '').trim());
-      } else if (line.startsWith(player2match)) {
-        player2name =
-            _getPlayerName(line.replaceFirst(player2match, '').trim());
-      }
     }
-  }
-
-  String _getPlayerName(String source) {
-    if (source.startsWith('[') && source.endsWith(']')) {
-      return source.substring(1, source.length - 1);
-    }
-    throw FillerReadException('Cannot read player name');
-  }
-
-  Completer<String?>? nextLineCompleter;
-  Queue<String> lineQueue = Queue<String>();
-
-  void lineStreamListener(String newLine) {
-    if (nextLineCompleter != null) {
-      nextLineCompleter!.complete(newLine);
-      nextLineCompleter = null;
-    } else {
-      lineQueue.add(newLine);
-    }
-  }
-
-  void lineStreamOnDone() {
-    _streamDone = true;
-    nextLineCompleter?.complete(null);
-    nextLineCompleter = null;
-  }
-
-  Future<String> getNextLine({required FillerReadException onError}) async {
-    if (lineQueue.isNotEmpty) {
-      return lineQueue.removeFirst();
-    }
-    if (_streamDone) {
-      throw onError;
-    }
-    nextLineCompleter = Completer<String?>();
-    final result = await nextLineCompleter!.future;
-    if (result == null) {
-      throw onError;
-    }
-    return result;
   }
 
   Future _readSteps() async {
     while (!(_lastLine.startsWith(tailLineStart))) {
-      await _readStep();
+      if (Const.debugSlowStepsLoading) {
+        await Future.delayed(Const.debugSlowStepsLoadingDelay);
+      }
+      final field = await _readStepField();
+      final piece = await _readStepPiece();
+      final info = await _readStepInfo();
+      steps.add(FillerStep(field: field, piece: piece, info: info));
       sectionDone = FillerReaderState.step;
     }
   }
 
-  Future _readStep() async {
-    if (Const.debugSlowStepsLoading) {
-      await Future.delayed(Const.debugSlowStepsLoadingDelay);
-    }
-
-    var step = FillerStep();
-
-    step.field = _lastLine.startsWith(stepPieceStart)
-        ? FillerField2d()
-        : await _readStepField();
-
-    step.piece = await _readStepPiece();
-    step.info = await _readStepInfo();
-    steps.add(step);
-  }
-
   Future<FillerField2d> _readStepField() async {
-    final fieldInfoLine = _lastLine;
-    var field = FillerField2d();
-
-    var info = fieldInfoLine
+    final infoList = _lastLine
         .replaceAll(':', '')
         .replaceAll(stepLineStart, '')
         .trim()
         .split(' ');
-
-    if (info.length != 2) {
+    if (infoList.length != 2) {
       throw FillerReadException('Cannot read step ${steps.length + 1} info');
     }
-
-    field.height = int.tryParse(info.first);
-    field.width = int.tryParse(info.last);
-
-    if (field.height == null || field.width == null) {
-      throw FillerReadException('Cannot read step size');
-    }
+    final field = FillerField2d.fromStringValues(
+        height: infoList.first,
+        width: infoList.last,
+        onError: FillerReadException('Cannot read step piece size'));
 
     var stepLineNumber = 0;
-
     while (true) {
       final line = await getNextLine(
           onError: FillerReadException('Unexpected end of step field input'));
@@ -276,7 +231,7 @@ class FillerReader {
       if (stepLineNumber <= 1) {
         continue;
       }
-      if (stepLineNumber > field.height! + 1) {
+      if (stepLineNumber > field.height + 1) {
         _lastLine = line;
         return field;
       }
@@ -284,41 +239,28 @@ class FillerReader {
     }
   }
 
-  List<int> _stepCharsToIntegers(String chars) {
-    return chars.codeUnits;
-  }
-
-  // TODO merge with stepField
   Future<FillerField2d> _readStepPiece() async {
-    final pieceInfoLine = _lastLine;
-
-    var piece = FillerField2d();
-    var info = pieceInfoLine
+    final infoList = _lastLine
         .replaceAll(':', '')
         .replaceAll(stepPieceStart, '')
         .trim()
         .split(' ');
-
-    if (info.length != 2) {
-      print('info length is ${info.length}, \'$pieceInfoLine\'');
+    if (infoList.length != 2) {
       throw FillerReadException(
           'Cannot read step ${steps.length + 1} piece info');
     }
-
-    piece.height = int.tryParse(info.first);
-    piece.width = int.tryParse(info.last);
-
-    if (piece.height == null || piece.width == null) {
-      throw FillerReadException('Cannot read step piece size');
-    }
+    final piece = FillerField2d.fromStringValues(
+      height: infoList.first,
+      width: infoList.last,
+      onError: FillerReadException('Cannot read step piece size'),
+    );
 
     var stepLineNumber = 0;
-
     while (true) {
       final line = await getNextLine(
           onError: FillerReadException('Unexpected end of step piece input'));
       stepLineNumber++;
-      if (stepLineNumber > piece.height!) {
+      if (stepLineNumber > piece.height) {
         _lastLine = line;
         return piece;
       }
@@ -327,10 +269,7 @@ class FillerReader {
   }
 
   Future _readStepInfo() async {
-    var infoLine = _lastLine;
-    var stepInfo = FillerStepInfo();
-
-    var info = infoLine
+    final infoList = _lastLine
         .replaceAll(stepLastLineStart, '')
         .replaceAll('(', '')
         .replaceAll(')', '')
@@ -340,31 +279,25 @@ class FillerReader {
         .replaceAll(']', '')
         .trim()
         .split(' ');
-    if (info.length != 3) {
+    if (infoList.length != 3) {
       throw FillerReadException('Cannot read step ${steps.length + 1} info');
     }
-
-    switch (info.first) {
-      case 'O':
-        stepInfo.player = names.player1;
-        break;
-      case 'X':
-        stepInfo.player = names.player2;
-        break;
-      default:
-        throw FillerReadException('Cannot read step player');
-    }
-
-    stepInfo.coordinateY = int.tryParse(info[1]);
-    stepInfo.coordinateX = int.tryParse(info[2]);
-
-    if (stepInfo.coordinateY == null || stepInfo.coordinateX == null) {
-      throw FillerReadException('Cannot read step info coordinates');
-    }
-    final line = await getNextLine(
+    Function nameGetter = (String pattern) {
+      switch (pattern) {
+        case 'O':
+          return names.player1;
+        case 'X':
+          return names.player2;
+      }
+      throw FillerReadException('Cannot read step ${steps.length + 1} player');
+    };
+    _lastLine = await getNextLine(
         onError: FillerReadException('Unexpected end of step info ending'));
-    _lastLine = line;
-    return stepInfo;
+    return FillerStepInfo.fromStringValues(
+      player: nameGetter(infoList[0]),
+      coordinateX: infoList[1],
+      coordinateY: infoList[2],
+    );
   }
 
   Future _readTail() async {
@@ -390,6 +323,47 @@ class FillerReader {
       throw FillerReadException('Cannot read final score line(s)');
     }
     return split.last;
+  }
+
+  String _getPlayerName(String source) {
+    if (source.startsWith('[') && source.endsWith(']')) {
+      return source.substring(1, source.length - 1);
+    }
+    throw FillerReadException('Cannot read player name');
+  }
+
+  void _lineStreamListener(String newLine) {
+    if (_nextLineCompleter != null) {
+      _nextLineCompleter!.complete(newLine);
+      _nextLineCompleter = null;
+    } else {
+      _lineQueue.add(newLine);
+    }
+  }
+
+  void _lineStreamOnDone() {
+    _streamDone = true;
+    _nextLineCompleter?.complete(null);
+    _nextLineCompleter = null;
+  }
+
+  Future<String> getNextLine({required FillerReadException onError}) async {
+    if (_lineQueue.isNotEmpty) {
+      return _lineQueue.removeFirst();
+    }
+    if (_streamDone) {
+      throw onError;
+    }
+    _nextLineCompleter = Completer<String?>();
+    final result = await _nextLineCompleter!.future;
+    if (result == null) {
+      throw onError;
+    }
+    return result;
+  }
+
+  List<int> _stepCharsToIntegers(String chars) {
+    return chars.codeUnits;
   }
 
   static Stream<String> _splitStringToLines(String source) async* {
@@ -436,35 +410,53 @@ class FillerReadException implements Exception {
 }
 
 class FillerField2d {
-  List<List<int>> field = List.empty(growable: true);
-  int? height;
-  int? width;
+  final List<List<int>> field = List<List<int>>.empty(growable: true);
+  late final int height;
+  late final int width;
 
-  FillerField2d();
+  FillerField2d.fromStringValues({
+    required String height,
+    required String width,
+    required FillerReadException onError,
+  }) {
+    try {
+      this.height = int.parse(height);
+      this.width = int.parse(width);
+    } on FormatException catch (_) {
+      throw onError;
+    }
+  }
 
   void addLine(List<int> line) {
     field.add(line);
   }
-
-  List<int> operator [](index) {
-    return field[index];
-  }
 }
 
 class FillerStep {
-  FillerField2d? field;
-  FillerField2d? piece;
-  FillerStepInfo? info;
+  final FillerField2d field;
+  final FillerField2d piece;
+  final FillerStepInfo info;
 
-  FillerStep();
+  const FillerStep({
+    required this.field,
+    required this.info,
+    required this.piece,
+  });
 }
 
 class FillerStepInfo {
-  String? player;
-  int? coordinateX;
-  int? coordinateY;
+  final String player;
+  late final int coordinateX;
+  late final int coordinateY;
 
-  FillerStepInfo();
+  FillerStepInfo.fromStringValues({
+    required this.player,
+    required String coordinateX,
+    required String coordinateY,
+  }) {
+    this.coordinateX = int.parse(coordinateX);
+    this.coordinateY = int.parse(coordinateY);
+  }
 }
 
 class PlayerPropertyPair {
