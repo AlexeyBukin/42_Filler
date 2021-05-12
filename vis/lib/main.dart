@@ -10,7 +10,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     setWindowTitle('Filler Visualizer');
-    setWindowMinSize(const Size(1280, 720));
+    setWindowMinSize(const Size(640, 480));
     setWindowMaxSize(Size.infinite);
   }
   runApp(MyApp());

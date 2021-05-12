@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:filler/table.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:filler/extensions/material_color_creator.dart';
 import 'package:filler/filler_reader.dart';
 import 'package:filler/filepicker_bridge.dart';
-import 'package:filler/extensions/color_harmonies.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'dart:math' as math;
 
@@ -91,12 +91,7 @@ class FillerPageState extends State<FillerPage> {
   }
 
   void onReaderUpdateStep() {
-    steps = reader.steps
-        .map((e) => e.field.width == null ? reader.steps.first : e)
-        .toList();
-    steps = reader.steps
-        .map((e) => e.field.height == null ? reader.steps.first : e)
-        .toList();
+    steps = reader.steps;
     setState(() {});
   }
 
@@ -159,10 +154,10 @@ class FillerPageState extends State<FillerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          bottom: PreferredSize(
-            child: loading ? LinearProgressIndicator() : Container(),
-            preferredSize: Size.fromHeight(5),
-          ),
+        bottom: PreferredSize(
+          child: loading ? LinearProgressIndicator() : Container(),
+          preferredSize: Size.fromHeight(5),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -185,7 +180,9 @@ class FillerPageState extends State<FillerPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            Padding(padding: EdgeInsets.only(top: 10)),
             buildMainPanel(),
+            Padding(padding: EdgeInsets.only(top: 10)),
             buildPlayerPanel(),
           ],
         ),
@@ -219,11 +216,14 @@ class FillerPageState extends State<FillerPage> {
   }
 
   Widget buildInfoPanel() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('Player1: ' + player1),
-        Text('Player2: ' + player2),
+        Text(player1),
+        Padding(padding: EdgeInsets.only(top: 10)),
+        Text('VS'),
+        Padding(padding: EdgeInsets.only(top: 10)),
+        Text(player2),
       ],
     );
   }
@@ -233,102 +233,58 @@ class FillerPageState extends State<FillerPage> {
       // color: Colors.red,
       child: steps.isEmpty
           ? Center(child: Text('Let\'s load some Filler replays!'))
-          : buildTable(),
+          : InteractiveViewer(
+              child: FillerTable(field: steps[currentStep].field),
+              maxScale: 2,
+            ),
       // padding: EdgeInsets.all(10),
     );
     return Expanded(
       child: Row(
         children: [
+          Padding(padding: EdgeInsets.only(left: 10)),
           Expanded(
             flex: 2,
             child: tableWidget,
           ),
+          Padding(padding: EdgeInsets.only(left: 10)),
           Expanded(
             flex: 1,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                buildInfoPanel(),
-                buildPiece(),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Expanded(child: buildInfoPanel()),
+                  Expanded(child: buildPiece()),
+                ],
+              ),
             ),
-          )
+          ),
+          Padding(padding: EdgeInsets.only(left: 10)),
         ],
       ),
     );
   }
 
   Widget buildPiece() {
-    return Center(
-      child: Text('centered text'),
-    );
-  }
-
-  List<TableRow> fieldTableRowList(List<List<int>> tableData,
-      [Color? fieldPrimaryColor]) {
-    fieldPrimaryColor ??= Colors.blue;
-    final color1 = MaterialColorCreator.create(fieldPrimaryColor);
-    final color2 =
-        MaterialColorCreator.create(fieldPrimaryColor.complementary());
-
-    final fieldColor = Color.fromARGB(255, 200, 200, 200);
-    final rowMapper = (List<int> rowData) => rowData.map((int cellData) {
-          // baseColor is assigned as '??=' to constants
-          // so it can be safely unwrapped with '!'
-          final Color Function(int) getColor = (int cellData) {
-            switch (cellData) {
-              case FillerReader.player1Old:
-                return color1.shade300;
-              case FillerReader.player1New:
-                return color1;
-              case FillerReader.player2Old:
-                return color2.shade300;
-              case FillerReader.player2New:
-                return color2;
-              case FillerReader.emptyCell:
-                return fieldColor;
-              default:
-                return Colors.black;
-            }
-          };
-          Color color = getColor(cellData);
-          return AspectRatio(
-            aspectRatio: 1,
-            child: Container(
-              color: color,
+    if (steps.isEmpty) {
+      return Center(child: Text('Here will be piece preview'));
+    }
+    return Column(
+      children: [
+        Text('Next piece:'),
+        Expanded(
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: FillerTable(
+                field: steps[currentStep].piece,
+              ),
             ),
-          );
-        }).toList();
-    return tableData
-        .map((rowData) => TableRow(children: rowMapper(rowData)))
-        .toList();
-  }
-
-  Widget buildTable() {
-    var step = steps[currentStep].field;
-    var width = step.width;
-    var height = step.height;
-    // double scale = 10;
-    // return Container(
-    //   padding: EdgeInsets.all(20),
-    //   color: Colors.red,
-    //   width: scale * width,
-    //   height: scale * height,
-    //   child: Table(
-    //     defaultColumnWidth: const FixedColumnWidth(8),
-    //     border: TableBorder.all(),
-    //     defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    //     children: fieldTableRowList(step.field),
-    //   ),
-    // );
-    return AspectRatio(
-      aspectRatio: width.toDouble() / height.toDouble(),
-      child: Table(
-        defaultColumnWidth: const FixedColumnWidth(8),
-        border: TableBorder.all(),
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        children: fieldTableRowList(step.field),
-      ),
+          ),
+        ),
+      ],
     );
   }
 
