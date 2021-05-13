@@ -10,6 +10,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
 # find src -type f -name '*.c' -not -path "src/libft/*" | sed 'N;N;s/\n/ /g' | column -t
 set(${PROJECT_NAME}_SOURCES
         src/main.c
+        src/utils.c
         )
 
 set(SDL2_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/libsdl/include)
