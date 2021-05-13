@@ -7,13 +7,16 @@ import 'package:flutter/rendering.dart';
 class FillerTable extends StatelessWidget {
   final FillerField2d field;
   final double? cellSize;
-  final Color fieldPrimaryColor;
+  final MaterialColor materialColor1;
+  final MaterialColor materialColor2;
 
-  const FillerTable({
+  FillerTable({
     required this.field,
     this.cellSize,
-    this.fieldPrimaryColor = Colors.blue,
-  });
+    Color color1 = Colors.blue,
+    Color color2 = Colors.orange,
+  })  : materialColor1 = MaterialColorCreator.create(color1),
+        materialColor2 = MaterialColorCreator.create(color2);
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +44,9 @@ class FillerTable extends StatelessWidget {
   }
 
   List<TableRow> fieldTableRowList(List<List<int>> tableData) {
-    final color1 = MaterialColorCreator.create(fieldPrimaryColor);
-    final color2 =
-        MaterialColorCreator.create(fieldPrimaryColor.complementary());
+    // final color1 = MaterialColorCreator.create(fieldPrimaryColor);
+    // final color2 =
+    //     MaterialColorCreator.create(fieldPrimaryColor.complementary());
 
     final fieldColor = Color.fromARGB(255, 200, 200, 200);
     final rowMapper = (List<int> rowData) => rowData.map((int cellData) {
@@ -53,13 +56,13 @@ class FillerTable extends StatelessWidget {
             switch (cellData) {
               case FillerReader.player1Old:
               case FillerReader.pieceCell:
-                return color1.shade300;
+                return materialColor1.shade300;
               case FillerReader.player1New:
-                return color1;
+                return materialColor1;
               case FillerReader.player2Old:
-                return color2.shade300;
+                return materialColor2.shade300;
               case FillerReader.player2New:
-                return color2;
+                return materialColor2;
               case FillerReader.emptyCell:
                 return fieldColor;
               default:

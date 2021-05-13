@@ -203,23 +203,28 @@ class FillerReader {
   }
 
   Future<FillerField2d> _readStepField() async {
+    if (_lastLine.startsWith(stepPieceStart)) {
+      return steps.last.field;
+    }
     final infoList = _lastLine
         .replaceAll(':', '')
         .replaceAll(stepLineStart, '')
         .trim()
         .split(' ');
     if (infoList.length != 2) {
-      throw FillerReadException('Cannot read step ${steps.length + 1} info');
+      print('line: $_lastLine');
+      print('list: $infoList');
+      throw FillerReadException('Cannot read step ${steps.length + 1} field info');
     }
     final field = FillerField2d.fromStringValues(
         height: infoList.first,
         width: infoList.last,
-        onError: FillerReadException('Cannot read step piece size'));
+        onError: FillerReadException('Cannot read step ${steps.length + 1} field info'));
 
     var stepLineNumber = 0;
     while (true) {
       final line = await getNextLine(
-          onError: FillerReadException('Unexpected end of step field input'));
+          onError: FillerReadException('Unexpected end of step ${steps.length + 1} field input'));
       stepLineNumber++;
       if (stepLineNumber <= 1) {
         continue;
@@ -245,13 +250,13 @@ class FillerReader {
     final piece = FillerField2d.fromStringValues(
       height: infoList.first,
       width: infoList.last,
-      onError: FillerReadException('Cannot read step piece size'),
+      onError: FillerReadException('Cannot read step ${steps.length + 1} piece size'),
     );
 
     var stepLineNumber = 0;
     while (true) {
       final line = await getNextLine(
-          onError: FillerReadException('Unexpected end of step piece input'));
+          onError: FillerReadException('Unexpected end of step ${steps.length + 1} piece input'));
       stepLineNumber++;
       if (stepLineNumber > piece.height) {
         _lastLine = line;
@@ -341,6 +346,9 @@ class FillerReader {
   }
 
   Future<String> getNextLine({required FillerReadException onError}) async {
+
+    _linesRead++;
+
     if (lineQueue.isNotEmpty) {
       return lineQueue.removeFirst();
     }

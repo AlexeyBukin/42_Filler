@@ -42,6 +42,11 @@ class FillerPageState extends State<FillerPage> {
   late List<FillerStep> steps;
   late String player1;
   late String player2;
+  late String score1;
+  late String score2;
+
+  Color color1 = Colors.blue;
+  Color color2 = Colors.orange;
 
   bool get loading => loadingState == LoadingState.loading;
 
@@ -52,13 +57,9 @@ class FillerPageState extends State<FillerPage> {
     progressWidget = Text(reader.sectionDone.toString());
     switch (reader.sectionDone) {
       case FillerReaderState.none:
-        // Do nothing
-        // progressWidget = Text('state_none')
         break;
       case FillerReaderState.header:
-        // TODO: Update score
         setState(() {
-          //TODO refactor
           player1 = reader.names.player1;
           player2 = reader.names.player2;
           progressWidget = Text('Header is loaded');
@@ -77,14 +78,14 @@ class FillerPageState extends State<FillerPage> {
         break;
       case FillerReaderState.all:
         setState(() {
+          score1 = reader.score.player1;
+          score2 = reader.score.player2;
           loadingState = LoadingState.finished;
-          progressWidget = Text('Loading done!');
         });
         break;
       case FillerReaderState.error:
         setState(() {
           loadingState = LoadingState.stopped;
-          progressWidget = Text('Error occurred while loading');
         });
         break;
     }
@@ -100,6 +101,8 @@ class FillerPageState extends State<FillerPage> {
     currentStep = 0;
     player1 = '...';
     player2 = '...';
+    score1 = '0';
+    score2 = '0';
     playerState = PlayerState.paused;
     playerSpeed = 0.0;
   }
@@ -192,15 +195,15 @@ class FillerPageState extends State<FillerPage> {
 
   Widget progressWidget = Text('here we have progress');
 
-  Widget buildProgressIndicator() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Text('Progress:'),
-        progressWidget,
-      ],
-    );
-  }
+  // Widget buildProgressIndicator() {
+  //   return Row(
+  //     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  //     children: [
+  //       Text('Progress:'),
+  //       progressWidget,
+  //     ],
+  //   );
+  // }
 
   Future loadLogFile() async {
     final String? file = await pickLogFile(context);
@@ -215,15 +218,25 @@ class FillerPageState extends State<FillerPage> {
     }
   }
 
+  Widget buildInfoPanelLine(String player, String score) {
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Expanded(child: Text(player, overflow: TextOverflow.ellipsis, maxLines: 1,)),
+        Text(loadingState == LoadingState.finished ? score.padLeft(5) : '...'),
+      ],
+    );
+  }
+
   Widget buildInfoPanel() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(player1),
-        Padding(padding: EdgeInsets.only(top: 10)),
-        Text('VS'),
-        Padding(padding: EdgeInsets.only(top: 10)),
-        Text(player2),
+        Divider(color: color1,),
+        buildInfoPanelLine(player1, score1),
+        Divider(),
+        buildInfoPanelLine(player2, score2),
+        Divider(color: color2,),
       ],
     );
   }
@@ -319,8 +332,6 @@ class FillerPageState extends State<FillerPage> {
                 }
                 setState(() {
                   currentStep = value.round() - 1;
-                  print('currentStep: $currentStep');
-                  print('maxStep: $maxStep');
                 });
               },
             )),
@@ -376,6 +387,12 @@ class FillerPageState extends State<FillerPage> {
     );
   }
 }
+
+
+// TODO color change
+//     final color1 = MaterialColorCreator.create(fieldPrimaryColor);
+//     final color2 =
+//         MaterialColorCreator.create(fieldPrimaryColor.complementary());
 
 // Widget button(context) {
 //   var currentColor = Colors.blue;
